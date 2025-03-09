@@ -1,0 +1,447 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: AlertPolicies
+metadata:
+  name: warning-alerts
+  description: "Warning alert policies for AI Agent Network"
+spec:
+  policies:
+    - displayName: "WebSocket Server CPU Utilization - Warning"
+      documentation:
+        content: "Warning alert for WebSocket server CPU utilization. Triggers when CPU utilization exceeds 70% over a 5-minute period, indicating potential resource constraints that could lead to performance degradation if not addressed."
+        mimeType: "text/markdown"
+      combiner: OR
+      conditions:
+        - displayName: "CPU Utilization > 70%"
+          conditionThreshold:
+            filter: 'metric.type="run.googleapis.com/container/cpu/utilization" resource.type="cloud_run_revision" resource.label."service_name"="websocket-server"'
+            aggregations:
+              - alignmentPeriod: 300s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_GT
+            thresholdValue: 0.7
+            duration: 300s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 3600s
+        notificationRateLimit:
+          period: 1800s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${slack_warning_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: WARNING
+
+    - displayName: "WebSocket Server Memory Utilization - Warning"
+      documentation:
+        content: "Warning alert for WebSocket server memory utilization. Triggers when memory utilization exceeds 70% over a 5-minute period, indicating potential resource constraints that could lead to performance degradation if not addressed."
+        mimeType: "text/markdown"
+      combiner: OR
+      conditions:
+        - displayName: "Memory Utilization > 70%"
+          conditionThreshold:
+            filter: 'metric.type="run.googleapis.com/container/memory/utilization" resource.type="cloud_run_revision" resource.label."service_name"="websocket-server"'
+            aggregations:
+              - alignmentPeriod: 300s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_GT
+            thresholdValue: 0.7
+            duration: 300s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 3600s
+        notificationRateLimit:
+          period: 1800s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${slack_warning_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: WARNING
+
+    - displayName: "WebSocket Error Rate - Warning"
+      documentation:
+        content: "Warning alert for WebSocket error rate. Triggers when the error rate exceeds 2% over a 5-minute period, indicating potential issues with agent communication that should be investigated."
+        mimeType: "text/markdown"
+      combiner: OR
+      conditions:
+        - displayName: "Error Rate > 2%"
+          conditionThreshold:
+            filter: 'metric.type="custom.googleapis.com/websocket/error_rate" resource.type="cloud_run_revision" resource.label."service_name"="websocket-server"'
+            aggregations:
+              - alignmentPeriod: 300s
+                perSeriesAligner: ALIGN_RATE
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_GT
+            thresholdValue: 0.02
+            duration: 300s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 3600s
+        notificationRateLimit:
+          period: 1800s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${slack_warning_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: WARNING
+
+    - displayName: "WebSocket Message Latency - Warning"
+      documentation:
+        content: "Warning alert for WebSocket message latency. Triggers when the 95th percentile latency exceeds 500ms over a 5-minute period, indicating performance degradation that could impact user experience."
+        mimeType: "text/markdown"
+      combiner: OR
+      conditions:
+        - displayName: "p95 Latency > 500ms"
+          conditionThreshold:
+            filter: 'metric.type="custom.googleapis.com/websocket/message_latency" resource.type="cloud_run_revision" resource.label."service_name"="websocket-server"'
+            aggregations:
+              - alignmentPeriod: 300s
+                perSeriesAligner: ALIGN_PERCENTILE_95
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_GT
+            thresholdValue: 500
+            duration: 300s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 3600s
+        notificationRateLimit:
+          period: 1800s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${slack_warning_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: WARNING
+
+    - displayName: "WebSocket Connection Capacity - Warning"
+      documentation:
+        content: "Warning alert for WebSocket connection capacity. Triggers when the connection count exceeds 70% of maximum capacity, indicating the need for potential scaling to accommodate growing usage."
+        mimeType: "text/markdown"
+      combiner: OR
+      conditions:
+        - displayName: "Connection Count > 70% Capacity"
+          conditionThreshold:
+            filter: 'metric.type="custom.googleapis.com/websocket/active_connections" resource.type="cloud_run_revision" resource.label."service_name"="websocket-server"'
+            aggregations:
+              - alignmentPeriod: 300s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_SUM
+            comparison: COMPARISON_GT
+            thresholdValue: 1400
+            duration: 300s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 3600s
+        notificationRateLimit:
+          period: 1800s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${slack_warning_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: WARNING
+
+    - displayName: "Authentication Service Success Rate - Warning"
+      documentation:
+        content: "Warning alert for Firebase Authentication service. Triggers when the authentication success rate falls below 98% over a 5-minute period, indicating potential authentication issues that should be investigated."
+        mimeType: "text/markdown"
+      combiner: OR
+      conditions:
+        - displayName: "Auth Success Rate < 98%"
+          conditionThreshold:
+            filter: 'metric.type="custom.googleapis.com/firebase/authentication_success_rate" resource.type="global"'
+            aggregations:
+              - alignmentPeriod: 300s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_LT
+            thresholdValue: 0.98
+            duration: 300s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 3600s
+        notificationRateLimit:
+          period: 1800s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${slack_warning_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: WARNING
+
+    - displayName: "Calendar API Success Rate - Warning"
+      documentation:
+        content: "Warning alert for Google Calendar API integration. Triggers when the API success rate falls below 98% over a 5-minute period, indicating potential issues with calendar integration that should be investigated."
+        mimeType: "text/markdown"
+      combiner: OR
+      conditions:
+        - displayName: "Calendar API Success Rate < 98%"
+          conditionThreshold:
+            filter: 'metric.type="custom.googleapis.com/calendar/api_success_rate" resource.type="global"'
+            aggregations:
+              - alignmentPeriod: 300s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_LT
+            thresholdValue: 0.98
+            duration: 300s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 3600s
+        notificationRateLimit:
+          period: 1800s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${slack_warning_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: WARNING
+
+    - displayName: "OpenAI API Success Rate - Warning"
+      documentation:
+        content: "Warning alert for OpenAI API integration. Triggers when the API success rate falls below 98% over a 5-minute period, indicating potential issues with agent intelligence capabilities that should be investigated."
+        mimeType: "text/markdown"
+      combiner: OR
+      conditions:
+        - displayName: "OpenAI API Success Rate < 98%"
+          conditionThreshold:
+            filter: 'metric.type="custom.googleapis.com/openai/api_success_rate" resource.type="global"'
+            aggregations:
+              - alignmentPeriod: 300s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_LT
+            thresholdValue: 0.98
+            duration: 300s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 3600s
+        notificationRateLimit:
+          period: 1800s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${slack_warning_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: WARNING
+
+    - displayName: "Frontend Error Rate - Warning"
+      documentation:
+        content: "Warning alert for frontend application errors. Triggers when the error rate exceeds 2% over a 5-minute period, indicating potential issues with the user interface that should be investigated."
+        mimeType: "text/markdown"
+      combiner: OR
+      conditions:
+        - displayName: "Frontend Error Rate > 2%"
+          conditionThreshold:
+            filter: 'metric.type="custom.googleapis.com/frontend/error_rate" resource.type="global"'
+            aggregations:
+              - alignmentPeriod: 300s
+                perSeriesAligner: ALIGN_RATE
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_GT
+            thresholdValue: 0.02
+            duration: 300s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 3600s
+        notificationRateLimit:
+          period: 1800s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${slack_warning_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: WARNING
+
+    - displayName: "Frontend Page Load Time - Warning"
+      documentation:
+        content: "Warning alert for frontend page load time. Triggers when the 95th percentile page load time exceeds 3 seconds, indicating performance issues that could degrade user experience."
+        mimeType: "text/markdown"
+      combiner: OR
+      conditions:
+        - displayName: "p95 Page Load Time > 3s"
+          conditionThreshold:
+            filter: 'metric.type="custom.googleapis.com/frontend/page_load_time" resource.type="global"'
+            aggregations:
+              - alignmentPeriod: 300s
+                perSeriesAligner: ALIGN_PERCENTILE_95
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_GT
+            thresholdValue: 3000
+            duration: 300s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 3600s
+        notificationRateLimit:
+          period: 1800s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${slack_warning_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: WARNING
+
+    - displayName: "API Quota Usage - Warning"
+      documentation:
+        content: "Warning alert for API quota usage. Triggers when quota usage exceeds 70% for any external API, indicating the need to monitor usage and potentially increase quota limits."
+        mimeType: "text/markdown"
+      combiner: OR
+      conditions:
+        - displayName: "OpenAI API Quota > 70%"
+          conditionThreshold:
+            filter: 'metric.type="custom.googleapis.com/openai/quota_usage" resource.type="global"'
+            aggregations:
+              - alignmentPeriod: 3600s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_GT
+            thresholdValue: 0.7
+            duration: 3600s
+            trigger:
+              count: 1
+        - displayName: "Google Calendar API Quota > 70%"
+          conditionThreshold:
+            filter: 'metric.type="custom.googleapis.com/calendar/quota_usage" resource.type="global"'
+            aggregations:
+              - alignmentPeriod: 3600s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_GT
+            thresholdValue: 0.7
+            duration: 3600s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 86400s
+        notificationRateLimit:
+          period: 3600s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${slack_warning_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: WARNING
+
+    - displayName: "Redis Memory Usage - Warning"
+      documentation:
+        content: "Warning alert for Redis memory usage. Triggers when memory usage exceeds 70%, indicating the need to monitor Redis capacity for WebSocket message routing."
+        mimeType: "text/markdown"
+      combiner: OR
+      conditions:
+        - displayName: "Redis Memory Usage > 70%"
+          conditionThreshold:
+            filter: 'metric.type="redis.googleapis.com/stats/memory/usage_ratio" resource.type="redis_instance"'
+            aggregations:
+              - alignmentPeriod: 300s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_GT
+            thresholdValue: 0.7
+            duration: 300s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 3600s
+        notificationRateLimit:
+          period: 1800s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${slack_warning_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: WARNING
+
+    - displayName: "Rate Limiting Events - Warning"
+      documentation:
+        content: "Warning alert for rate limiting events. Triggers when the rate of limiting events exceeds a threshold, indicating potential abuse or misconfiguration that should be investigated."
+        mimeType: "text/markdown"
+      combiner: OR
+      conditions:
+        - displayName: "Rate Limiting Events > 10/min"
+          conditionThreshold:
+            filter: 'metric.type="custom.googleapis.com/websocket/rate_limit_events" resource.type="cloud_run_revision" resource.label."service_name"="websocket-server"'
+            aggregations:
+              - alignmentPeriod: 60s
+                perSeriesAligner: ALIGN_RATE
+                crossSeriesReducer: REDUCE_SUM
+            comparison: COMPARISON_GT
+            thresholdValue: 10
+            duration: 300s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 3600s
+        notificationRateLimit:
+          period: 1800s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${slack_warning_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: WARNING
+
+    - displayName: "Message Delivery Success Rate - Warning"
+      documentation:
+        content: "Warning alert for WebSocket message delivery success rate. Triggers when the delivery success rate falls below 98%, indicating potential issues with agent-to-agent communication reliability."
+        mimeType: "text/markdown"
+      combiner: OR
+      conditions:
+        - displayName: "Delivery Success Rate < 98%"
+          conditionThreshold:
+            filter: 'metric.type="custom.googleapis.com/websocket/message_delivery_success_rate" resource.type="cloud_run_revision" resource.label."service_name"="websocket-server"'
+            aggregations:
+              - alignmentPeriod: 300s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_LT
+            thresholdValue: 0.98
+            duration: 300s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 3600s
+        notificationRateLimit:
+          period: 1800s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${slack_warning_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: WARNING
+
+    - displayName: "SLA Warning - Warning"
+      documentation:
+        content: "Warning alert for SLA compliance. Triggers when any service level objective approaches its warning threshold, indicating potential SLA violations if not addressed."
+        mimeType: "text/markdown"
+      combiner: OR
+      conditions:
+        - displayName: "WebSocket Availability SLA Warning"
+          conditionThreshold:
+            filter: 'metric.type="custom.googleapis.com/slo/websocket_availability" resource.type="global"'
+            aggregations:
+              - alignmentPeriod: 3600s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_LT
+            thresholdValue: 0.999
+            duration: 3600s
+            trigger:
+              count: 1
+        - displayName: "Authentication SLA Warning"
+          conditionThreshold:
+            filter: 'metric.type="custom.googleapis.com/slo/authentication_success_rate" resource.type="global"'
+            aggregations:
+              - alignmentPeriod: 3600s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_LT
+            thresholdValue: 0.99
+            duration: 3600s
+            trigger:
+              count: 1
+        - displayName: "Calendar Integration SLA Warning"
+          conditionThreshold:
+            filter: 'metric.type="custom.googleapis.com/slo/calendar_integration" resource.type="global"'
+            aggregations:
+              - alignmentPeriod: 3600s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_LT
+            thresholdValue: 0.99
+            duration: 3600s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 3600s
+        notificationRateLimit:
+          period: 1800s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${slack_warning_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: WARNING
