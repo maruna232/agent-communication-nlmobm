@@ -1,0 +1,466 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: AlertPolicies
+metadata:
+  name: critical-alerts
+  description: Critical alert policies for AI Agent Network
+spec:
+  policies:
+    - displayName: WebSocket Server Outage - Critical
+      documentation:
+        content: >
+          Critical alert for WebSocket server outage. Triggers when the service is unavailable, 
+          preventing agent-to-agent communication across the platform.
+        mimeType: text/markdown
+      combiner: OR
+      conditions:
+        - displayName: WebSocket Server Unavailable
+          conditionThreshold:
+            filter: metric.type="run.googleapis.com/container/uptime" resource.type="cloud_run_revision" resource.label."service_name"="websocket-server"
+            aggregations:
+              - alignmentPeriod: 60s
+                perSeriesAligner: ALIGN_FRACTION_TRUE
+                crossSeriesReducer: REDUCE_COUNT_FALSE
+            comparison: COMPARISON_LT
+            thresholdValue: 0.95
+            duration: 60s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 1800s
+        notificationRateLimit:
+          period: 300s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${pagerduty_channel_id}
+        - projects/${project_id}/notificationChannels/${slack_critical_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: CRITICAL
+
+    - displayName: WebSocket Error Rate - Critical
+      documentation:
+        content: >
+          Critical alert for WebSocket error rate. Triggers when the error rate exceeds 5% over a 5-minute period, 
+          indicating significant issues with agent communication.
+        mimeType: text/markdown
+      combiner: OR
+      conditions:
+        - displayName: Error Rate > 5%
+          conditionThreshold:
+            filter: metric.type="custom.googleapis.com/websocket/error_rate" resource.type="cloud_run_revision" resource.label."service_name"="websocket-server"
+            aggregations:
+              - alignmentPeriod: 300s
+                perSeriesAligner: ALIGN_RATE
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_GT
+            thresholdValue: 0.05
+            duration: 300s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 1800s
+        notificationRateLimit:
+          period: 300s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${pagerduty_channel_id}
+        - projects/${project_id}/notificationChannels/${slack_critical_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: CRITICAL
+
+    - displayName: WebSocket Message Latency - Critical
+      documentation:
+        content: >
+          Critical alert for WebSocket message latency. Triggers when the 95th percentile latency exceeds 1000ms 
+          over a 5-minute period, indicating severe performance degradation that significantly impacts user experience.
+        mimeType: text/markdown
+      combiner: OR
+      conditions:
+        - displayName: p95 Latency > 1000ms
+          conditionThreshold:
+            filter: metric.type="custom.googleapis.com/websocket/message_latency" resource.type="cloud_run_revision" resource.label."service_name"="websocket-server"
+            aggregations:
+              - alignmentPeriod: 300s
+                perSeriesAligner: ALIGN_PERCENTILE_95
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_GT
+            thresholdValue: 1000
+            duration: 300s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 1800s
+        notificationRateLimit:
+          period: 300s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${pagerduty_channel_id}
+        - projects/${project_id}/notificationChannels/${slack_critical_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: CRITICAL
+
+    - displayName: WebSocket Server CPU Utilization - Critical
+      documentation:
+        content: >
+          Critical alert for WebSocket server CPU utilization. Triggers when CPU utilization exceeds 90% 
+          over a 5-minute period, indicating resource exhaustion that could lead to service degradation.
+        mimeType: text/markdown
+      combiner: OR
+      conditions:
+        - displayName: CPU Utilization > 90%
+          conditionThreshold:
+            filter: metric.type="run.googleapis.com/container/cpu/utilization" resource.type="cloud_run_revision" resource.label."service_name"="websocket-server"
+            aggregations:
+              - alignmentPeriod: 300s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_GT
+            thresholdValue: 0.9
+            duration: 300s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 1800s
+        notificationRateLimit:
+          period: 300s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${pagerduty_channel_id}
+        - projects/${project_id}/notificationChannels/${slack_critical_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: CRITICAL
+
+    - displayName: WebSocket Server Memory Utilization - Critical
+      documentation:
+        content: >
+          Critical alert for WebSocket server memory utilization. Triggers when memory utilization exceeds 90% 
+          over a 5-minute period, indicating resource exhaustion that could lead to service degradation.
+        mimeType: text/markdown
+      combiner: OR
+      conditions:
+        - displayName: Memory Utilization > 90%
+          conditionThreshold:
+            filter: metric.type="run.googleapis.com/container/memory/utilization" resource.type="cloud_run_revision" resource.label."service_name"="websocket-server"
+            aggregations:
+              - alignmentPeriod: 300s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_GT
+            thresholdValue: 0.9
+            duration: 300s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 1800s
+        notificationRateLimit:
+          period: 300s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${pagerduty_channel_id}
+        - projects/${project_id}/notificationChannels/${slack_critical_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: CRITICAL
+
+    - displayName: Authentication Service Outage - Critical
+      documentation:
+        content: >
+          Critical alert for Firebase Authentication service. Triggers when the authentication success rate 
+          falls below 95% over a 5-minute period, indicating a significant authentication issue that prevents 
+          users from accessing the platform.
+        mimeType: text/markdown
+      combiner: OR
+      conditions:
+        - displayName: Auth Success Rate < 95%
+          conditionThreshold:
+            filter: metric.type="custom.googleapis.com/firebase/authentication_success_rate" resource.type="global"
+            aggregations:
+              - alignmentPeriod: 300s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_LT
+            thresholdValue: 0.95
+            duration: 300s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 1800s
+        notificationRateLimit:
+          period: 300s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${pagerduty_channel_id}
+        - projects/${project_id}/notificationChannels/${slack_critical_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: CRITICAL
+
+    - displayName: Calendar API Outage - Critical
+      documentation:
+        content: >
+          Critical alert for Google Calendar API integration. Triggers when the API success rate falls below 95% 
+          over a 5-minute period, indicating a significant issue with calendar integration that prevents 
+          scheduling functionality.
+        mimeType: text/markdown
+      combiner: OR
+      conditions:
+        - displayName: Calendar API Success Rate < 95%
+          conditionThreshold:
+            filter: metric.type="custom.googleapis.com/calendar/api_success_rate" resource.type="global"
+            aggregations:
+              - alignmentPeriod: 300s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_LT
+            thresholdValue: 0.95
+            duration: 300s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 1800s
+        notificationRateLimit:
+          period: 300s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${pagerduty_channel_id}
+        - projects/${project_id}/notificationChannels/${slack_critical_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: CRITICAL
+
+    - displayName: OpenAI API Outage - Critical
+      documentation:
+        content: >
+          Critical alert for OpenAI API integration. Triggers when the API success rate falls below 95% 
+          over a 5-minute period, indicating a significant issue with agent intelligence capabilities.
+        mimeType: text/markdown
+      combiner: OR
+      conditions:
+        - displayName: OpenAI API Success Rate < 95%
+          conditionThreshold:
+            filter: metric.type="custom.googleapis.com/openai/api_success_rate" resource.type="global"
+            aggregations:
+              - alignmentPeriod: 300s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_LT
+            thresholdValue: 0.95
+            duration: 300s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 1800s
+        notificationRateLimit:
+          period: 300s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${pagerduty_channel_id}
+        - projects/${project_id}/notificationChannels/${slack_critical_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: CRITICAL
+
+    - displayName: Frontend Error Rate - Critical
+      documentation:
+        content: >
+          Critical alert for frontend application errors. Triggers when the error rate exceeds 5% 
+          over a 5-minute period, indicating significant issues with the user interface that 
+          severely impact user experience.
+        mimeType: text/markdown
+      combiner: OR
+      conditions:
+        - displayName: Frontend Error Rate > 5%
+          conditionThreshold:
+            filter: metric.type="custom.googleapis.com/frontend/error_rate" resource.type="global"
+            aggregations:
+              - alignmentPeriod: 300s
+                perSeriesAligner: ALIGN_RATE
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_GT
+            thresholdValue: 0.05
+            duration: 300s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 1800s
+        notificationRateLimit:
+          period: 300s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${pagerduty_channel_id}
+        - projects/${project_id}/notificationChannels/${slack_critical_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: CRITICAL
+
+    - displayName: API Quota Exhaustion - Critical
+      documentation:
+        content: >
+          Critical alert for API quota exhaustion. Triggers when quota usage exceeds 90% 
+          for any external API, indicating imminent quota limits that could prevent system functionality.
+        mimeType: text/markdown
+      combiner: OR
+      conditions:
+        - displayName: OpenAI API Quota > 90%
+          conditionThreshold:
+            filter: metric.type="custom.googleapis.com/openai/quota_usage" resource.type="global"
+            aggregations:
+              - alignmentPeriod: 3600s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_GT
+            thresholdValue: 0.9
+            duration: 3600s
+            trigger:
+              count: 1
+        - displayName: Google Calendar API Quota > 90%
+          conditionThreshold:
+            filter: metric.type="custom.googleapis.com/calendar/quota_usage" resource.type="global"
+            aggregations:
+              - alignmentPeriod: 3600s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_GT
+            thresholdValue: 0.9
+            duration: 3600s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 86400s
+        notificationRateLimit:
+          period: 3600s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${pagerduty_channel_id}
+        - projects/${project_id}/notificationChannels/${slack_critical_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: CRITICAL
+
+    - displayName: Redis Memory Exhaustion - Critical
+      documentation:
+        content: >
+          Critical alert for Redis memory exhaustion. Triggers when memory usage exceeds 90%, 
+          indicating imminent failure of WebSocket message routing that would prevent agent-to-agent communication.
+        mimeType: text/markdown
+      combiner: OR
+      conditions:
+        - displayName: Redis Memory Usage > 90%
+          conditionThreshold:
+            filter: metric.type="redis.googleapis.com/stats/memory/usage_ratio" resource.type="redis_instance"
+            aggregations:
+              - alignmentPeriod: 300s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_GT
+            thresholdValue: 0.9
+            duration: 300s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 1800s
+        notificationRateLimit:
+          period: 300s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${pagerduty_channel_id}
+        - projects/${project_id}/notificationChannels/${slack_critical_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: CRITICAL
+
+    - displayName: Frontend Page Load Time - Critical
+      documentation:
+        content: >
+          Critical alert for frontend page load time. Triggers when the 95th percentile page load time 
+          exceeds 5 seconds, indicating severe performance issues that significantly degrade user experience.
+        mimeType: text/markdown
+      combiner: OR
+      conditions:
+        - displayName: p95 Page Load Time > 5s
+          conditionThreshold:
+            filter: metric.type="custom.googleapis.com/frontend/page_load_time" resource.type="global"
+            aggregations:
+              - alignmentPeriod: 300s
+                perSeriesAligner: ALIGN_PERCENTILE_95
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_GT
+            thresholdValue: 5000
+            duration: 300s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 1800s
+        notificationRateLimit:
+          period: 300s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${pagerduty_channel_id}
+        - projects/${project_id}/notificationChannels/${slack_critical_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: CRITICAL
+
+    - displayName: WebSocket Connection Capacity - Critical
+      documentation:
+        content: >
+          Critical alert for WebSocket connection capacity. Triggers when the connection count 
+          exceeds 90% of maximum capacity, indicating imminent resource exhaustion that could 
+          prevent new agent connections.
+        mimeType: text/markdown
+      combiner: OR
+      conditions:
+        - displayName: Connection Count > 90% Capacity
+          conditionThreshold:
+            filter: metric.type="custom.googleapis.com/websocket/active_connections" resource.type="cloud_run_revision" resource.label."service_name"="websocket-server"
+            aggregations:
+              - alignmentPeriod: 300s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_SUM
+            comparison: COMPARISON_GT
+            thresholdValue: 1800
+            duration: 300s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 1800s
+        notificationRateLimit:
+          period: 300s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${pagerduty_channel_id}
+        - projects/${project_id}/notificationChannels/${slack_critical_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: CRITICAL
+
+    - displayName: SLA Breach - Critical
+      documentation:
+        content: >
+          Critical alert for SLA breach. Triggers when any service level objective falls below 
+          its critical threshold, indicating a violation of service level agreements.
+        mimeType: text/markdown
+      combiner: OR
+      conditions:
+        - displayName: WebSocket Availability SLA Breach
+          conditionThreshold:
+            filter: metric.type="custom.googleapis.com/slo/websocket_availability" resource.type="global"
+            aggregations:
+              - alignmentPeriod: 3600s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_LT
+            thresholdValue: 0.999
+            duration: 3600s
+            trigger:
+              count: 1
+        - displayName: Authentication SLA Breach
+          conditionThreshold:
+            filter: metric.type="custom.googleapis.com/slo/authentication_success_rate" resource.type="global"
+            aggregations:
+              - alignmentPeriod: 3600s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_LT
+            thresholdValue: 0.995
+            duration: 3600s
+            trigger:
+              count: 1
+        - displayName: Calendar Integration SLA Breach
+          conditionThreshold:
+            filter: metric.type="custom.googleapis.com/slo/calendar_integration" resource.type="global"
+            aggregations:
+              - alignmentPeriod: 3600s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+            comparison: COMPARISON_LT
+            thresholdValue: 0.995
+            duration: 3600s
+            trigger:
+              count: 1
+      alertStrategy:
+        autoClose: 3600s
+        notificationRateLimit:
+          period: 1800s
+      notificationChannels:
+        - projects/${project_id}/notificationChannels/${pagerduty_channel_id}
+        - projects/${project_id}/notificationChannels/${slack_critical_channel_id}
+        - projects/${project_id}/notificationChannels/${email_channel_id}
+      severity: CRITICAL
