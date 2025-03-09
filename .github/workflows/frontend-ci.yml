@@ -1,0 +1,289 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/web/**'
+      - '.github/workflows/frontend-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/web/**'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'src/web/package-lock.json'
+          
+      - name: Install dependencies
+        working-directory: src/web
+        run: npm ci
+        
+      - name: Run ESLint
+        working-directory: src/web
+        run: npm run lint
+        
+      - name: Check TypeScript types
+        working-directory: src/web
+        run: npm run type-check
+        
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'src/web/package-lock.json'
+          
+      - name: Install dependencies
+        working-directory: src/web
+        run: npm ci
+        
+      - name: Run tests with coverage
+        working-directory: src/web
+        run: npm run test:coverage
+        env:
+          NODE_ENV: test
+          
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-coverage-report
+          path: src/web/coverage
+          retention-days: 14
+          
+  e2e-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'src/web/package-lock.json'
+          
+      - name: Install dependencies
+        working-directory: src/web
+        run: npm ci
+        
+      - name: Install Playwright browsers
+        working-directory: src/web
+        run: npx playwright install --with-deps
+        
+      - name: Build application for testing
+        working-directory: src/web
+        run: npm run build
+        env:
+          NODE_ENV: test
+          NEXT_PUBLIC_WEBSOCKET_URL: 'http://localhost:8080'
+          NEXT_PUBLIC_ENVIRONMENT: 'test'
+          
+      - name: Run Playwright tests
+        working-directory: src/web
+        run: npm run test:e2e
+        
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: playwright-report
+          path: src/web/playwright-report/
+          retention-days: 7
+          
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'src/web/package-lock.json'
+          
+      - name: Install dependencies
+        working-directory: src/web
+        run: npm ci
+        
+      - name: Run npm audit
+        working-directory: src/web
+        run: npm audit --production --audit-level=high
+        
+      - name: Run Snyk security scan
+        uses: snyk/actions/node@master
+        with:
+          args: '--severity-threshold=high --all-projects'
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          
+  build:
+    runs-on: ubuntu-latest
+    needs: [lint, test, security-scan]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'src/web/package-lock.json'
+          
+      - name: Install dependencies
+        working-directory: src/web
+        run: npm ci
+        
+      - name: Build application
+        working-directory: src/web
+        run: npm run build
+        env:
+          NODE_ENV: production
+          NEXT_PUBLIC_WEBSOCKET_URL: ${{ secrets.WEBSOCKET_URL }}
+          NEXT_PUBLIC_ENVIRONMENT: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
+          NEXT_PUBLIC_FIREBASE_CONFIG: ${{ secrets.FIREBASE_CONFIG }}
+          
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: next-build
+          path: src/web/.next
+          retention-days: 7
+          
+      - name: Upload public directory
+        uses: actions/upload-artifact@v3
+        with:
+          name: public-assets
+          path: src/web/public
+          retention-days: 7
+          
+      - name: Upload package.json
+        uses: actions/upload-artifact@v3
+        with:
+          name: package-json
+          path: src/web/package.json
+          retention-days: 7
+          
+  analyze-bundle:
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'src/web/package-lock.json'
+          
+      - name: Install dependencies
+        working-directory: src/web
+        run: npm ci
+        
+      - name: Analyze bundle
+        working-directory: src/web
+        run: npm run analyze
+        env:
+          ANALYZE: 'true'
+          NODE_ENV: 'production'
+          
+      - name: Upload bundle analysis
+        uses: actions/upload-artifact@v3
+        with:
+          name: bundle-analysis
+          path: src/web/.next/analyze
+          retention-days: 7
+          
+  accessibility-check:
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'src/web/package-lock.json'
+          
+      - name: Install dependencies
+        working-directory: src/web
+        run: npm ci
+        
+      - name: Install Playwright browsers
+        working-directory: src/web
+        run: npx playwright install --with-deps chromium
+        
+      - name: Start Next.js server
+        working-directory: src/web
+        run: npm run start & echo $! > .nextpid
+        
+      - name: Wait for server to start
+        run: sleep 10
+        
+      - name: Run accessibility tests
+        working-directory: src/web
+        run: npx axe-core-playwright chromium http://localhost:3000 --report-format=json --report-file=accessibility-report.json
+        
+      - name: Stop Next.js server
+        working-directory: src/web
+        run: kill $(cat .nextpid)
+        if: always()
+        
+      - name: Upload accessibility report
+        uses: actions/upload-artifact@v3
+        with:
+          name: accessibility-report
+          path: src/web/accessibility-report.json
+          retention-days: 7
+          
+  notify:
+    runs-on: ubuntu-latest
+    needs: [lint, test, build, security-scan, e2e-tests]
+    if: always()
+    steps:
+      - name: Check build status
+        id: check
+        run: echo "status=${{ job.status }}" >> $GITHUB_OUTPUT
+        
+      - name: Send Slack notification on failure
+        uses: slackapi/slack-github-action@v1.23.0
+        if: needs.lint.result != 'success' || needs.test.result != 'success' || needs.build.result != 'success' || needs.security-scan.result != 'success' || needs.e2e-tests.result != 'success'
+        with:
+          payload: '{"text":"❌ Frontend CI pipeline failed! See details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          
+      - name: Send Slack notification on success
+        uses: slackapi/slack-github-action@v1.23.0
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.lint.result == 'success' && needs.test.result == 'success' && needs.build.result == 'success' && needs.security-scan.result == 'success' && needs.e2e-tests.result == 'success'
+        with:
+          payload: '{"text":"✅ Frontend CI pipeline succeeded! Ready for deployment: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
