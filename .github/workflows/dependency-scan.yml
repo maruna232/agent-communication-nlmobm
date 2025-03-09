@@ -1,0 +1,210 @@
+name: Dependency Security Scan
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'  # Run weekly on Sunday at midnight
+  workflow_dispatch:
+    inputs:
+      scan_level:
+        description: 'Scan level (basic, standard, deep)'
+        required: true
+        default: 'standard'
+        type: choice
+        options:
+          - basic
+          - standard
+          - deep
+  push:
+    paths:
+      - 'src/web/package.json'
+      - 'src/web/package-lock.json'
+      - 'src/backend/package.json'
+      - 'src/backend/package-lock.json'
+      - 'src/backend/Dockerfile'
+
+jobs:
+  frontend-scan:
+    name: Scan Frontend Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'src/web/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: src/web
+        run: npm ci
+
+      - name: Run npm audit
+        working-directory: src/web
+        run: npm audit --json > npm-audit-report.json || true
+
+      - name: Run Snyk scan
+        uses: snyk/actions/node@master
+        with:
+          args: '--all-projects --sarif-file-output=snyk-frontend.sarif'
+          command: 'test'
+          json: 'true'
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          WORKING_DIRECTORY: src/web
+
+      - name: Upload Snyk SARIF report
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: snyk-frontend.sarif
+          category: frontend-dependencies
+
+      - name: Parse and analyze npm audit results
+        id: npm-audit-analysis
+        working-directory: src/web
+        run: |
+          echo "::set-output name=high_vulns::$(jq '.vulnerabilities | map(select(.severity == "high")) | length' npm-audit-report.json)"
+          echo "::set-output name=critical_vulns::$(jq '.vulnerabilities | map(select(.severity == "critical")) | length' npm-audit-report.json)"
+
+      - name: Check for critical vulnerabilities
+        if: steps.npm-audit-analysis.outputs.critical_vulns > 0
+        run: |
+          echo "::error::Found ${{ steps.npm-audit-analysis.outputs.critical_vulns }} critical vulnerabilities in frontend dependencies"
+          exit 1
+
+  backend-scan:
+    name: Scan Backend Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'src/backend/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: src/backend
+        run: npm ci
+
+      - name: Run npm audit
+        working-directory: src/backend
+        run: npm audit --json > npm-audit-report.json || true
+
+      - name: Run Snyk scan
+        uses: snyk/actions/node@master
+        with:
+          args: '--all-projects --sarif-file-output=snyk-backend.sarif'
+          command: 'test'
+          json: 'true'
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          WORKING_DIRECTORY: src/backend
+
+      - name: Upload Snyk SARIF report
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: snyk-backend.sarif
+          category: backend-dependencies
+
+      - name: Parse and analyze npm audit results
+        id: npm-audit-analysis
+        working-directory: src/backend
+        run: |
+          echo "::set-output name=high_vulns::$(jq '.vulnerabilities | map(select(.severity == "high")) | length' npm-audit-report.json)"
+          echo "::set-output name=critical_vulns::$(jq '.vulnerabilities | map(select(.severity == "critical")) | length' npm-audit-report.json)"
+
+      - name: Check for critical vulnerabilities
+        if: steps.npm-audit-analysis.outputs.critical_vulns > 0
+        run: |
+          echo "::error::Found ${{ steps.npm-audit-analysis.outputs.critical_vulns }} critical vulnerabilities in backend dependencies"
+          exit 1
+
+  docker-scan:
+    name: Scan Docker Image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: src/backend
+          push: false
+          tags: ai-agent-network-backend:scan
+          load: true
+          cache-from: type=gha,scope=backend-docker-scan
+          cache-to: type=gha,scope=backend-docker-scan,mode=max
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ai-agent-network-backend:scan
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          exit-code: '0'
+          ignore-unfixed: ${{ github.event.inputs.scan_level != 'deep' }}
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: trivy-results.sarif
+          category: docker-image
+
+      - name: Check for critical vulnerabilities
+        run: |
+          if grep -q '"Severity":"CRITICAL"' trivy-results.sarif; then
+            echo '::error::Critical vulnerabilities found in Docker image'
+            if [[ "${{ github.event_name }}" == 'push' ]]; then
+              exit 1
+            fi
+          fi
+
+  dependency-report:
+    name: Generate Vulnerability Report
+    runs-on: ubuntu-latest
+    needs: [frontend-scan, backend-scan, docker-scan]
+    if: always()
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Generate vulnerability report
+        run: node security/scripts/generate-vulnerability-report.js
+
+      - name: Upload vulnerability report
+        uses: actions/upload-artifact@v3
+        with:
+          name: vulnerability-report
+          path: security/reports/vulnerability-report-${{ github.run_id }}.html
+          retention-days: 90
+
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          payload: '{"text":"📊 Dependency security scan completed. View the report: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Send alert on critical vulnerabilities
+        if: needs.frontend-scan.result == 'failure' || needs.backend-scan.result == 'failure' || needs.docker-scan.result == 'failure'
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          payload: '{"text":"🚨 CRITICAL SECURITY ALERT: Vulnerabilities detected in dependencies! Immediate attention required: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_SECURITY_ALERTS }}
