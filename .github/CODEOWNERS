@@ -1,0 +1,44 @@
+# When a pull request is opened, appropriate code owners will be automatically requested for review.
+# For more information about CODEOWNERS files, see:
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything in the repo
+*                       @project-leads
+
+# Frontend application code
+src/web/**              @frontend-team
+
+# Backend WebSocket server code
+src/backend/**          @backend-team
+
+# Infrastructure as Code and deployment configurations
+infrastructure/**       @devops-team
+
+# Security-related configurations and documentation
+security/**             @security-team
+
+# Project documentation
+docs/**                 @docs-team @project-leads
+
+# GitHub Actions CI/CD workflow configurations
+.github/workflows/**    @devops-team
+
+# Critical components with specific ownership
+
+# Encryption implementations
+src/web/src/lib/encryption.ts               @security-team @frontend-team
+src/backend/src/utils/encryption.utils.ts   @security-team @backend-team
+
+# WebSocket implementations
+src/web/src/lib/websocket/**                @frontend-team @backend-team
+src/backend/src/services/websocket.service.ts  @backend-team
+
+# Google Calendar integration
+src/web/src/lib/calendar/**                 @frontend-team @integration-team
+
+# OpenAI API integration
+src/web/src/lib/api/openai.api.ts           @frontend-team @ai-team
+
+# Package configuration
+package.json                                @devops-team @project-leads
+package-lock.json                           @devops-team
