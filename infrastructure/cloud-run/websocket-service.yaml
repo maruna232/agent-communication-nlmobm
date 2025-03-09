@@ -1,0 +1,74 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: websocket-server-${ENVIRONMENT}
+  labels:
+    app: ai-agent-network
+    component: websocket-server
+    environment: ${ENVIRONMENT}
+    managed-by: cloud-run-config
+  annotations:
+    autoscaling.knative.dev/minScale: "${MIN_INSTANCES}"
+    autoscaling.knative.dev/maxScale: "${MAX_INSTANCES}"
+    run.googleapis.com/vpc-access-connector: "websocket-vpc-connector-${ENVIRONMENT}"
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/maxScale: "${MAX_INSTANCES}"
+        autoscaling.knative.dev/minScale: "${MIN_INSTANCES}"
+        run.googleapis.com/cpu-throttling: "false"
+        run.googleapis.com/startup-cpu-boost: "true"
+    spec:
+      serviceAccountName: websocket-sa-${ENVIRONMENT}
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      containers:
+        - image: gcr.io/${PROJECT_ID}/websocket-server:${IMAGE_TAG}
+          ports:
+            - containerPort: 3001
+          resources:
+            limits:
+              cpu: ${CPU}
+              memory: ${MEMORY}
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3001"
+            - name: REDIS_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: websocket-redis-${ENVIRONMENT}
+                  key: host
+            - name: REDIS_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: websocket-redis-${ENVIRONMENT}
+                  key: port
+            - name: FIREBASE_PROJECT_ID
+              value: ${PROJECT_ID}
+            - name: LOG_LEVEL
+              value: "info"
+            - name: ENVIRONMENT
+              value: ${ENVIRONMENT}
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 5
+            periodSeconds: 3
+            timeoutSeconds: 1
+            successThreshold: 1
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            periodSeconds: 30
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+  traffic:
+    - percent: 100
+      latestRevision: true
