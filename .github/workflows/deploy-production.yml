@@ -1,0 +1,411 @@
+name: Deploy to Production
+
+on:
+  workflow_run:
+    workflows: ['Deploy to Staging']
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      manual_approval:
+        description: 'Confirm production deployment'
+        required: true
+        type: boolean
+        default: false
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+env:
+  PROJECT_ID: ai-agent-network-prod
+  REGION: us-central1
+  FRONTEND_URL: https://aiagentnetwork.com
+  BACKEND_SERVICE_NAME: websocket-server
+  TF_WORKING_DIR: infrastructure/terraform/environments/production
+
+jobs:
+  check-workflows:
+    runs-on: ubuntu-latest
+    if: "github.event_name == 'workflow_run'"
+    steps:
+      - name: Check workflow status
+        run: if [[ "${{ github.event.workflow_run.conclusion }}" != "success" ]]; then echo "Prerequisite workflow did not succeed" && exit 1; fi
+
+  manual-approval:
+    runs-on: ubuntu-latest
+    needs: [check-workflows]
+    if: "github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')"
+    steps:
+      - name: Approval check
+        run: if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.manual_approval }}" != "true" ]]; then echo "Manual approval not confirmed" && exit 1; fi
+      
+      - name: Send approval notification
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          payload: '{"text":"🚀 Production deployment approved and initiated by ${{ github.actor }}"}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  deploy-infrastructure:
+    runs-on: ubuntu-latest
+    needs: [manual-approval]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: '1.5.0'
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_PRODUCTION }}
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform init
+
+      - name: Terraform Validate
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform plan -out=tfplan
+        env:
+          TF_VAR_project_id: ${{ env.PROJECT_ID }}
+          TF_VAR_region: ${{ env.REGION }}
+          TF_VAR_environment: 'production'
+          TF_VAR_firebase_api_key: ${{ secrets.FIREBASE_API_KEY_PRODUCTION }}
+          TF_VAR_openai_api_key: ${{ secrets.OPENAI_API_KEY_PRODUCTION }}
+          TF_VAR_vercel_api_token: ${{ secrets.VERCEL_TOKEN }}
+          TF_VAR_vercel_project_id: ${{ secrets.VERCEL_PROJECT_ID_PRODUCTION }}
+          TF_VAR_pagerduty_service_key: ${{ secrets.PAGERDUTY_SERVICE_KEY }}
+
+      - name: Terraform Apply
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform apply -auto-approve tfplan
+
+  deploy-backend-canary:
+    runs-on: ubuntu-latest
+    needs: [deploy-infrastructure]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_PRODUCTION }}
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to Google Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: gcr.io
+          username: _json_key
+          password: ${{ secrets.GCP_SA_KEY_PRODUCTION }}
+
+      - name: Download backend Docker image
+        uses: actions/download-artifact@v3
+        with:
+          name: backend-docker-image
+          path: .
+
+      - name: Load Docker image
+        run: docker load < backend-image.tar
+
+      - name: Tag Docker image
+        run: docker tag ai-agent-network-backend:${{ github.sha }} gcr.io/${{ env.PROJECT_ID }}/${{ env.BACKEND_SERVICE_NAME }}:${{ github.sha }}
+
+      - name: Push Docker image
+        run: docker push gcr.io/${{ env.PROJECT_ID }}/${{ env.BACKEND_SERVICE_NAME }}:${{ github.sha }}
+
+      - name: Deploy to Cloud Run with canary strategy
+        run: gcloud run deploy ${{ env.BACKEND_SERVICE_NAME }} --image gcr.io/${{ env.PROJECT_ID }}/${{ env.BACKEND_SERVICE_NAME }}:${{ github.sha }} --region ${{ env.REGION }} --platform managed --allow-unauthenticated --memory 4Gi --cpu 2 --min-instances 4 --max-instances 20 --port 3001 --set-env-vars="NODE_ENV=production,REDIS_HOST=${{ secrets.REDIS_HOST_PRODUCTION }},REDIS_PORT=${{ secrets.REDIS_PORT_PRODUCTION }},REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD_PRODUCTION }},FIREBASE_PROJECT_ID=ai-agent-network-prod,CORS_ORIGIN=https://aiagentnetwork.com,https://*.aiagentnetwork.com,LOG_LEVEL=info,RATE_LIMIT_WEBSOCKET_MESSAGES=10,RATE_LIMIT_WEBSOCKET_CONNECTIONS=5" --tag canary --traffic-percentage=10
+
+      - name: Get canary revision URL
+        id: canary-url
+        run: echo "url=$(gcloud run services describe ${{ env.BACKEND_SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)')/canary" >> $GITHUB_OUTPUT
+    
+    outputs:
+      canary-url: ${{ steps.canary-url.outputs.url }}
+
+  test-backend-canary:
+    runs-on: ubuntu-latest
+    needs: [deploy-backend-canary]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'src/backend/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: src/backend
+        run: npm ci
+
+      - name: Run integration tests against canary deployment
+        working-directory: src/backend
+        run: npm run test:integration
+        env:
+          API_URL: ${{ needs.deploy-backend-canary.outputs.canary-url }}
+
+      - name: Monitor canary deployment metrics
+        run: gcloud run services describe ${{ env.BACKEND_SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.conditions)' | grep -q 'Ready' || exit 1
+
+      - name: Check error rates
+        run: gcloud logging read 'resource.type=cloud_run_revision AND resource.labels.service_name=${{ env.BACKEND_SERVICE_NAME }} AND severity>=ERROR' --limit=10 --format='value(severity)' | wc -l | xargs -I {} bash -c 'if [ {} -gt 5 ]; then echo "Error rate too high"; exit 1; fi'
+
+  migrate-backend-traffic-50:
+    runs-on: ubuntu-latest
+    needs: [test-backend-canary]
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_PRODUCTION }}
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Migrate 50% traffic to canary deployment
+        run: gcloud run services update-traffic ${{ env.BACKEND_SERVICE_NAME }} --region ${{ env.REGION }} --to-tags canary=50
+
+      - name: Wait for traffic migration
+        run: sleep 60
+
+      - name: Check error rates after 50% migration
+        run: gcloud logging read 'resource.type=cloud_run_revision AND resource.labels.service_name=${{ env.BACKEND_SERVICE_NAME }} AND severity>=ERROR' --limit=10 --format='value(severity)' | wc -l | xargs -I {} bash -c 'if [ {} -gt 5 ]; then echo "Error rate too high"; exit 1; fi'
+
+  migrate-backend-traffic-100:
+    runs-on: ubuntu-latest
+    needs: [migrate-backend-traffic-50]
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_PRODUCTION }}
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Migrate 100% traffic to canary deployment
+        run: gcloud run services update-traffic ${{ env.BACKEND_SERVICE_NAME }} --region ${{ env.REGION }} --to-tags canary=100
+
+      - name: Tag as stable
+        run: gcloud run services update-traffic ${{ env.BACKEND_SERVICE_NAME }} --region ${{ env.REGION }} --to-revisions $(gcloud run revisions list --service ${{ env.BACKEND_SERVICE_NAME }} --region ${{ env.REGION }} --filter="tag:canary" --format="value(name)")=100
+
+      - name: Get backend URL
+        id: backend-url
+        run: echo "url=$(gcloud run services describe ${{ env.BACKEND_SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)')" >> $GITHUB_OUTPUT
+    
+    outputs:
+      backend-url: ${{ steps.backend-url.outputs.url }}
+
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    needs: [migrate-backend-traffic-100]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'src/web/package-lock.json'
+
+      - name: Download frontend build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: next-build
+          path: src/web/.next
+
+      - name: Download public directory
+        uses: actions/download-artifact@v3
+        with:
+          name: public-assets
+          path: src/web/public
+
+      - name: Download package.json
+        uses: actions/download-artifact@v3
+        with:
+          name: package-json
+          path: src/web
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+
+      - name: Deploy to Vercel production
+        working-directory: src/web
+        run: vercel deploy --prod --token ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --yes
+        env:
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_PRODUCTION }}
+          NEXT_PUBLIC_WEBSOCKET_URL: ${{ needs.migrate-backend-traffic-100.outputs.backend-url }}
+          NEXT_PUBLIC_ENVIRONMENT: 'production'
+          NEXT_PUBLIC_FIREBASE_CONFIG: ${{ secrets.FIREBASE_CONFIG_PRODUCTION }}
+
+  run-e2e-tests:
+    runs-on: ubuntu-latest
+    needs: [deploy-frontend]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'src/web/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: src/web
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: src/web
+        run: npx playwright install --with-deps
+
+      - name: Run E2E tests
+        working-directory: src/web
+        run: npm run test:e2e
+        env:
+          PLAYWRIGHT_TEST_BASE_URL: ${{ env.FRONTEND_URL }}
+
+  run-performance-tests:
+    runs-on: ubuntu-latest
+    needs: [deploy-frontend]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'src/web/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: src/web
+        run: npm ci
+
+      - name: Run Lighthouse CI
+        working-directory: src/web
+        run: npx lhci autorun
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+          LHCI_BUILD_CONTEXT__CURRENT_BRANCH: ${{ github.ref_name }}
+          LHCI_BUILD_CONTEXT__GITHUB_REPO_SLUG: ${{ github.repository }}
+
+  run-security-scan:
+    runs-on: ubuntu-latest
+    needs: [deploy-frontend]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Run OWASP ZAP scan
+        uses: zaproxy/action-baseline@v0.7.0
+        with:
+          target: ${{ env.FRONTEND_URL }}
+          rules_file_name: 'zap-rules.tsv'
+          cmd_options: '-a'
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [deploy-frontend, migrate-backend-traffic-100, run-e2e-tests, run-performance-tests, run-security-scan]
+    if: always()
+    steps:
+      - name: Check deployment status
+        id: check
+        run: echo "status=${{ job.status }}" >> $GITHUB_OUTPUT
+
+      - name: Send Slack notification on success
+        uses: slackapi/slack-github-action@v1.23.0
+        if: "needs.deploy-frontend.result == 'success' && needs.migrate-backend-traffic-100.result == 'success' && needs.run-e2e-tests.result == 'success'"
+        with:
+          payload: '{"text":"✅ Successfully deployed to production environment! Frontend: ${{ env.FRONTEND_URL }}, Backend: ${{ needs.migrate-backend-traffic-100.outputs.backend-url }}"}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Send Slack notification on failure
+        uses: slackapi/slack-github-action@v1.23.0
+        if: "needs.deploy-frontend.result != 'success' || needs.migrate-backend-traffic-100.result != 'success' || needs.run-e2e-tests.result != 'success'"
+        with:
+          payload: '{"text":"❌ Production deployment failed! See details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Send PagerDuty alert on critical failure
+        uses: fjogeleit/http-request-action@v1
+        if: "needs.deploy-frontend.result != 'success' || needs.migrate-backend-traffic-100.result != 'success'"
+        with:
+          url: 'https://events.pagerduty.com/v2/enqueue'
+          method: 'POST'
+          contentType: 'application/json'
+          data: '{"routing_key": "${{ secrets.PAGERDUTY_SERVICE_KEY }}", "event_action": "trigger", "payload": {"summary": "Production deployment failed", "severity": "critical", "source": "GitHub Actions", "component": "Deployment Pipeline", "group": "Production", "class": "deploy", "custom_details": {"github_run_id": "${{ github.run_id }}", "github_repository": "${{ github.repository }}", "github_workflow": "${{ github.workflow }}"}}}'
+
+  rollback-on-failure:
+    runs-on: ubuntu-latest
+    needs: [run-e2e-tests, migrate-backend-traffic-100]
+    if: "needs.run-e2e-tests.result != 'success'"
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_PRODUCTION }}
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Rollback to previous revision
+        run: gcloud run services update-traffic ${{ env.BACKEND_SERVICE_NAME }} --region ${{ env.REGION }} --to-revisions $(gcloud run revisions list --service ${{ env.BACKEND_SERVICE_NAME }} --region ${{ env.REGION }} --filter="NOT tag:canary" --format="value(name)" --limit=1)=100
+
+      - name: Rollback frontend deployment
+        run: vercel rollback --token ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --yes
+        env:
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_PRODUCTION }}
+
+      - name: Send rollback notification
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          payload: '{"text":"🔄 Production deployment failed E2E tests and was rolled back to previous version."}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Send PagerDuty alert for rollback
+        uses: fjogeleit/http-request-action@v1
+        with:
+          url: 'https://events.pagerduty.com/v2/enqueue'
+          method: 'POST'
+          contentType: 'application/json'
+          data: '{"routing_key": "${{ secrets.PAGERDUTY_SERVICE_KEY }}", "event_action": "trigger", "payload": {"summary": "Production deployment rolled back", "severity": "warning", "source": "GitHub Actions", "component": "Deployment Pipeline", "group": "Production", "class": "rollback", "custom_details": {"github_run_id": "${{ github.run_id }}", "github_repository": "${{ github.repository }}", "github_workflow": "${{ github.workflow }}"}}}'
