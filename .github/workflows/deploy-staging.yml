@@ -1,0 +1,302 @@
+name: Deploy to Staging
+
+on:
+  workflow_run:
+    workflows: ['Frontend CI', 'Backend CI']
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Force deployment even if no changes detected'
+        required: false
+        default: 'false'
+        type: boolean
+
+concurrency:
+  group: staging-deployment
+  cancel-in-progress: false
+
+env:
+  PROJECT_ID: ai-agent-network-staging
+  REGION: us-central1
+  FRONTEND_URL: https://staging.aiagentnetwork.com
+  BACKEND_SERVICE_NAME: websocket-server
+  TF_WORKING_DIR: infrastructure/terraform/environments/staging
+
+jobs:
+  check-workflows:
+    runs-on: ubuntu-latest
+    if: "github.event_name == 'workflow_run'"
+    steps:
+      - name: Check workflow status
+        run: if [[ "${{ github.event.workflow_run.conclusion }}" != "success" ]]; then echo "Prerequisite workflow did not succeed" && exit 1; fi
+
+  deploy-infrastructure:
+    runs-on: ubuntu-latest
+    needs: [check-workflows]
+    if: "github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: '1.5.0'
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_STAGING }}
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform init
+
+      - name: Terraform Validate
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform plan -out=tfplan
+        env:
+          TF_VAR_project_id: ${{ env.PROJECT_ID }}
+          TF_VAR_region: ${{ env.REGION }}
+          TF_VAR_environment: 'staging'
+          TF_VAR_firebase_api_key: ${{ secrets.FIREBASE_API_KEY_STAGING }}
+          TF_VAR_openai_api_key: ${{ secrets.OPENAI_API_KEY_STAGING }}
+          TF_VAR_vercel_api_token: ${{ secrets.VERCEL_TOKEN }}
+          TF_VAR_vercel_project_id: ${{ secrets.VERCEL_PROJECT_ID_STAGING }}
+
+      - name: Terraform Apply
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform apply -auto-approve tfplan
+
+  deploy-backend:
+    runs-on: ubuntu-latest
+    needs: [deploy-infrastructure]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_STAGING }}
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to Google Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: gcr.io
+          username: _json_key
+          password: ${{ secrets.GCP_SA_KEY_STAGING }}
+
+      - name: Download backend Docker image
+        uses: actions/download-artifact@v3
+        with:
+          name: backend-docker-image
+          path: .
+
+      - name: Load Docker image
+        run: docker load < backend-image.tar
+
+      - name: Tag Docker image
+        run: docker tag ai-agent-network-backend:${{ github.sha }} gcr.io/${{ env.PROJECT_ID }}/${{ env.BACKEND_SERVICE_NAME }}:${{ github.sha }}
+
+      - name: Push Docker image
+        run: docker push gcr.io/${{ env.PROJECT_ID }}/${{ env.BACKEND_SERVICE_NAME }}:${{ github.sha }}
+
+      - name: Deploy to Cloud Run with blue-green strategy
+        run: gcloud run deploy ${{ env.BACKEND_SERVICE_NAME }} --image gcr.io/${{ env.PROJECT_ID }}/${{ env.BACKEND_SERVICE_NAME }}:${{ github.sha }} --region ${{ env.REGION }} --platform managed --allow-unauthenticated --memory 2Gi --cpu 1 --min-instances 2 --max-instances 10 --port 3001 --set-env-vars="NODE_ENV=staging,REDIS_HOST=${{ secrets.REDIS_HOST_STAGING }},REDIS_PORT=${{ secrets.REDIS_PORT_STAGING }},CORS_ORIGIN=https://staging.aiagentnetwork.com,LOG_LEVEL=debug" --tag blue --no-traffic
+
+      - name: Get blue revision URL
+        id: blue-url
+        run: echo "url=$(gcloud run services describe ${{ env.BACKEND_SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)')/blue" >> $GITHUB_OUTPUT
+
+  test-backend:
+    runs-on: ubuntu-latest
+    needs: [deploy-backend]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'src/backend/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: src/backend
+        run: npm ci
+
+      - name: Run integration tests against blue deployment
+        working-directory: src/backend
+        run: npm run test:integration
+        env:
+          API_URL: ${{ needs.deploy-backend.outputs.blue-url }}
+
+      - name: Monitor blue deployment metrics
+        run: gcloud run services describe ${{ env.BACKEND_SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.conditions)' | grep -q 'Ready' || exit 1
+
+  migrate-backend-traffic:
+    runs-on: ubuntu-latest
+    needs: [test-backend]
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_STAGING }}
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Migrate traffic to blue deployment
+        run: gcloud run services update-traffic ${{ env.BACKEND_SERVICE_NAME }} --region ${{ env.REGION }} --to-tags blue=100
+
+      - name: Tag as green
+        run: gcloud run services update-traffic ${{ env.BACKEND_SERVICE_NAME }} --region ${{ env.REGION }} --to-revisions $(gcloud run revisions list --service ${{ env.BACKEND_SERVICE_NAME }} --region ${{ env.REGION }} --filter="tag:blue" --format="value(name)")=100
+
+      - name: Get backend URL
+        id: backend-url
+        run: echo "url=$(gcloud run services describe ${{ env.BACKEND_SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)')" >> $GITHUB_OUTPUT
+
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    needs: [migrate-backend-traffic]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'src/web/package-lock.json'
+
+      - name: Download frontend build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: next-build
+          path: src/web/.next
+
+      - name: Download public directory
+        uses: actions/download-artifact@v3
+        with:
+          name: public-assets
+          path: src/web/public
+
+      - name: Download package.json
+        uses: actions/download-artifact@v3
+        with:
+          name: package-json
+          path: src/web
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+
+      - name: Deploy to Vercel staging
+        working-directory: src/web
+        run: vercel deploy --token ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --yes
+        env:
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_STAGING }}
+          NEXT_PUBLIC_WEBSOCKET_URL: ${{ needs.migrate-backend-traffic.outputs.backend-url }}
+          NEXT_PUBLIC_ENVIRONMENT: staging
+          NEXT_PUBLIC_FIREBASE_CONFIG: ${{ secrets.FIREBASE_CONFIG_STAGING }}
+
+  run-e2e-tests:
+    runs-on: ubuntu-latest
+    needs: [deploy-frontend]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'src/web/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: src/web
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: src/web
+        run: npx playwright install --with-deps
+
+      - name: Run E2E tests
+        working-directory: src/web
+        run: npm run test:e2e
+        env:
+          PLAYWRIGHT_TEST_BASE_URL: ${{ env.FRONTEND_URL }}
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [deploy-frontend, migrate-backend-traffic, run-e2e-tests]
+    if: always()
+    steps:
+      - name: Check deployment status
+        id: check
+        run: echo "status=${{ job.status }}" >> $GITHUB_OUTPUT
+
+      - name: Send Slack notification on success
+        uses: slackapi/slack-github-action@v1.23.0
+        if: "needs.deploy-frontend.result == 'success' && needs.migrate-backend-traffic.result == 'success' && needs.run-e2e-tests.result == 'success'"
+        with:
+          payload: '{"text":"✅ Successfully deployed to staging environment! Frontend: ${{ env.FRONTEND_URL }}, Backend: ${{ needs.migrate-backend-traffic.outputs.backend-url }}"}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Send Slack notification on failure
+        uses: slackapi/slack-github-action@v1.23.0
+        if: "needs.deploy-frontend.result != 'success' || needs.migrate-backend-traffic.result != 'success' || needs.run-e2e-tests.result != 'success'"
+        with:
+          payload: '{"text":"❌ Staging deployment failed! See details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  rollback-on-failure:
+    runs-on: ubuntu-latest
+    needs: [run-e2e-tests, migrate-backend-traffic]
+    if: "needs.run-e2e-tests.result != 'success'"
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_STAGING }}
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Rollback to previous revision
+        run: gcloud run services update-traffic ${{ env.BACKEND_SERVICE_NAME }} --region ${{ env.REGION }} --to-revisions $(gcloud run revisions list --service ${{ env.BACKEND_SERVICE_NAME }} --region ${{ env.REGION }} --filter="NOT tag:blue" --format="value(name)" --limit=1)=100
+
+      - name: Send rollback notification
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          payload: '{"text":"🔄 Staging deployment failed E2E tests and was rolled back to previous version."}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
