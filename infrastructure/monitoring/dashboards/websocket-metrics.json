@@ -1,0 +1,1147 @@
+{
+  "displayName": "AI Agent Network - WebSocket Metrics",
+  "gridLayout": {
+    "columns": 12,
+    "widgets": [
+      {
+        "title": "WebSocket Server Status",
+        "scorecard": {
+          "timeSeriesQuery": {
+            "timeSeriesFilter": {
+              "filter": "metric.type=\"run.googleapis.com/container/uptime\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+              "aggregation": {
+                "alignmentPeriod": "60s",
+                "perSeriesAligner": "ALIGN_FRACTION_TRUE"
+              }
+            }
+          },
+          "thresholds": [
+            {
+              "value": 0,
+              "color": "RED"
+            },
+            {
+              "value": 0.9,
+              "color": "YELLOW"
+            },
+            {
+              "value": 0.99,
+              "color": "GREEN"
+            }
+          ],
+          "sparkChartView": {
+            "sparkChartType": "SPARK_LINE"
+          }
+        },
+        "width": 4,
+        "height": 3,
+        "xPos": 0,
+        "yPos": 0
+      },
+      {
+        "title": "Active Connections",
+        "scorecard": {
+          "timeSeriesQuery": {
+            "timeSeriesFilter": {
+              "filter": "metric.type=\"custom.googleapis.com/websocket/active_connections\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+              "aggregation": {
+                "alignmentPeriod": "60s",
+                "perSeriesAligner": "ALIGN_MEAN",
+                "crossSeriesReducer": "REDUCE_SUM",
+                "groupByFields": []
+              }
+            }
+          },
+          "sparkChartView": {
+            "sparkChartType": "SPARK_LINE"
+          }
+        },
+        "width": 4,
+        "height": 3,
+        "xPos": 4,
+        "yPos": 0
+      },
+      {
+        "title": "WebSocket Error Rate",
+        "scorecard": {
+          "timeSeriesQuery": {
+            "timeSeriesFilter": {
+              "filter": "metric.type=\"custom.googleapis.com/websocket/error_rate\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+              "aggregation": {
+                "alignmentPeriod": "60s",
+                "perSeriesAligner": "ALIGN_RATE"
+              }
+            }
+          },
+          "thresholds": [
+            {
+              "value": 0.05,
+              "color": "RED"
+            },
+            {
+              "value": 0.02,
+              "color": "YELLOW"
+            },
+            {
+              "value": 0,
+              "color": "GREEN"
+            }
+          ],
+          "sparkChartView": {
+            "sparkChartType": "SPARK_LINE"
+          }
+        },
+        "width": 4,
+        "height": 3,
+        "xPos": 8,
+        "yPos": 0
+      },
+      {
+        "title": "Connection Statistics",
+        "collapsibleGroup": {
+          "collapsed": false
+        },
+        "width": 12,
+        "height": 1,
+        "xPos": 0,
+        "yPos": 3
+      },
+      {
+        "title": "Connection Count Over Time",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/websocket/active_connections\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_MEAN",
+                    "crossSeriesReducer": "REDUCE_SUM",
+                    "groupByFields": []
+                  }
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "Active Connections"
+            },
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/websocket/total_connections\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_MEAN",
+                    "crossSeriesReducer": "REDUCE_SUM",
+                    "groupByFields": []
+                  }
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "Total Connections"
+            }
+          ],
+          "timeshiftDuration": "0s",
+          "yAxis": {
+            "label": "Connection Count",
+            "scale": "LINEAR"
+          }
+        },
+        "width": 6,
+        "height": 4,
+        "xPos": 0,
+        "yPos": 4
+      },
+      {
+        "title": "Connection Status Distribution",
+        "pieChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/websocket/connections_by_status\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_MEAN",
+                    "crossSeriesReducer": "REDUCE_SUM",
+                    "groupByFields": [
+                      "metric.label.\"status\""
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "width": 6,
+        "height": 4,
+        "xPos": 6,
+        "yPos": 4
+      },
+      {
+        "title": "Connection Rate",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/websocket/connection_rate\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_RATE",
+                    "crossSeriesReducer": "REDUCE_SUM",
+                    "groupByFields": []
+                  }
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "New Connections/min"
+            },
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/websocket/disconnection_rate\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_RATE",
+                    "crossSeriesReducer": "REDUCE_SUM",
+                    "groupByFields": []
+                  }
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "Disconnections/min"
+            }
+          ],
+          "timeshiftDuration": "0s",
+          "yAxis": {
+            "label": "Connections per Minute",
+            "scale": "LINEAR"
+          }
+        },
+        "width": 6,
+        "height": 4,
+        "xPos": 0,
+        "yPos": 8
+      },
+      {
+        "title": "Authentication Success Rate",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/websocket/authentication_success_rate\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_MEAN",
+                    "crossSeriesReducer": "REDUCE_MEAN",
+                    "groupByFields": []
+                  }
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "Auth Success Rate"
+            }
+          ],
+          "timeshiftDuration": "0s",
+          "yAxis": {
+            "label": "Success Rate (%)",
+            "scale": "LINEAR"
+          }
+        },
+        "width": 6,
+        "height": 4,
+        "xPos": 6,
+        "yPos": 8
+      },
+      {
+        "title": "Message Statistics",
+        "collapsibleGroup": {
+          "collapsed": false
+        },
+        "width": 12,
+        "height": 1,
+        "xPos": 0,
+        "yPos": 12
+      },
+      {
+        "title": "Message Throughput",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/websocket/messages_sent\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_RATE",
+                    "crossSeriesReducer": "REDUCE_SUM",
+                    "groupByFields": []
+                  }
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "Messages Sent/min"
+            },
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/websocket/messages_received\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_RATE",
+                    "crossSeriesReducer": "REDUCE_SUM",
+                    "groupByFields": []
+                  }
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "Messages Received/min"
+            }
+          ],
+          "timeshiftDuration": "0s",
+          "yAxis": {
+            "label": "Messages per Minute",
+            "scale": "LINEAR"
+          }
+        },
+        "width": 6,
+        "height": 4,
+        "xPos": 0,
+        "yPos": 13
+      },
+      {
+        "title": "Message Delivery Status",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/websocket/messages_delivered\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_RATE",
+                    "crossSeriesReducer": "REDUCE_SUM",
+                    "groupByFields": []
+                  }
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "Delivered"
+            },
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/websocket/messages_failed\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_RATE",
+                    "crossSeriesReducer": "REDUCE_SUM",
+                    "groupByFields": []
+                  }
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "Failed"
+            }
+          ],
+          "timeshiftDuration": "0s",
+          "yAxis": {
+            "label": "Messages per Minute",
+            "scale": "LINEAR"
+          }
+        },
+        "width": 6,
+        "height": 4,
+        "xPos": 6,
+        "yPos": 13
+      },
+      {
+        "title": "Message Types Distribution",
+        "pieChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/websocket/messages_by_type\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "300s",
+                    "perSeriesAligner": "ALIGN_SUM",
+                    "crossSeriesReducer": "REDUCE_SUM",
+                    "groupByFields": [
+                      "metric.label.\"message_type\""
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "width": 6,
+        "height": 4,
+        "xPos": 0,
+        "yPos": 17
+      },
+      {
+        "title": "Message Delivery Success Rate",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/websocket/message_delivery_success_rate\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_MEAN",
+                    "crossSeriesReducer": "REDUCE_MEAN",
+                    "groupByFields": []
+                  }
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "Delivery Success Rate"
+            }
+          ],
+          "timeshiftDuration": "0s",
+          "yAxis": {
+            "label": "Success Rate (%)",
+            "scale": "LINEAR"
+          }
+        },
+        "width": 6,
+        "height": 4,
+        "xPos": 6,
+        "yPos": 17
+      },
+      {
+        "title": "Performance Metrics",
+        "collapsibleGroup": {
+          "collapsed": false
+        },
+        "width": 12,
+        "height": 1,
+        "xPos": 0,
+        "yPos": 21
+      },
+      {
+        "title": "Message Latency",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/websocket/message_latency\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_PERCENTILE_95",
+                    "crossSeriesReducer": "REDUCE_MEAN",
+                    "groupByFields": []
+                  },
+                  "unitOverride": "ms"
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "p95 Latency"
+            },
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/websocket/message_latency\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_PERCENTILE_50",
+                    "crossSeriesReducer": "REDUCE_MEAN",
+                    "groupByFields": []
+                  },
+                  "unitOverride": "ms"
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "p50 Latency"
+            }
+          ],
+          "timeshiftDuration": "0s",
+          "yAxis": {
+            "label": "Latency (ms)",
+            "scale": "LINEAR"
+          }
+        },
+        "width": 6,
+        "height": 4,
+        "xPos": 0,
+        "yPos": 22
+      },
+      {
+        "title": "Message Processing Time",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/websocket/message_processing_time\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_PERCENTILE_95",
+                    "crossSeriesReducer": "REDUCE_MEAN",
+                    "groupByFields": []
+                  },
+                  "unitOverride": "ms"
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "p95 Processing Time"
+            },
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/websocket/message_processing_time\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_PERCENTILE_50",
+                    "crossSeriesReducer": "REDUCE_MEAN",
+                    "groupByFields": []
+                  },
+                  "unitOverride": "ms"
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "p50 Processing Time"
+            }
+          ],
+          "timeshiftDuration": "0s",
+          "yAxis": {
+            "label": "Processing Time (ms)",
+            "scale": "LINEAR"
+          }
+        },
+        "width": 6,
+        "height": 4,
+        "xPos": 6,
+        "yPos": 22
+      },
+      {
+        "title": "Latency Distribution",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/websocket/message_latency\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "300s",
+                    "perSeriesAligner": "ALIGN_PERCENTILE_05",
+                    "crossSeriesReducer": "REDUCE_MEAN",
+                    "groupByFields": []
+                  },
+                  "unitOverride": "ms"
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "p5 Latency"
+            },
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/websocket/message_latency\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "300s",
+                    "perSeriesAligner": "ALIGN_PERCENTILE_50",
+                    "crossSeriesReducer": "REDUCE_MEAN",
+                    "groupByFields": []
+                  },
+                  "unitOverride": "ms"
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "p50 Latency"
+            },
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/websocket/message_latency\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "300s",
+                    "perSeriesAligner": "ALIGN_PERCENTILE_95",
+                    "crossSeriesReducer": "REDUCE_MEAN",
+                    "groupByFields": []
+                  },
+                  "unitOverride": "ms"
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "p95 Latency"
+            },
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/websocket/message_latency\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "300s",
+                    "perSeriesAligner": "ALIGN_PERCENTILE_99",
+                    "crossSeriesReducer": "REDUCE_MEAN",
+                    "groupByFields": []
+                  },
+                  "unitOverride": "ms"
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "p99 Latency"
+            }
+          ],
+          "timeshiftDuration": "0s",
+          "yAxis": {
+            "label": "Latency (ms)",
+            "scale": "LINEAR"
+          }
+        },
+        "width": 12,
+        "height": 4,
+        "xPos": 0,
+        "yPos": 26
+      },
+      {
+        "title": "Error Analysis",
+        "collapsibleGroup": {
+          "collapsed": false
+        },
+        "width": 12,
+        "height": 1,
+        "xPos": 0,
+        "yPos": 30
+      },
+      {
+        "title": "Error Count by Type",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/websocket/errors_by_type\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_RATE",
+                    "crossSeriesReducer": "REDUCE_SUM",
+                    "groupByFields": [
+                      "metric.label.\"error_type\""
+                    ]
+                  }
+                }
+              },
+              "plotType": "STACKED_BAR",
+              "legendTemplate": "${metric.label.error_type}"
+            }
+          ],
+          "timeshiftDuration": "0s",
+          "yAxis": {
+            "label": "Errors per Minute",
+            "scale": "LINEAR"
+          }
+        },
+        "width": 6,
+        "height": 4,
+        "xPos": 0,
+        "yPos": 31
+      },
+      {
+        "title": "Error Distribution",
+        "pieChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/websocket/errors_by_type\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "300s",
+                    "perSeriesAligner": "ALIGN_SUM",
+                    "crossSeriesReducer": "REDUCE_SUM",
+                    "groupByFields": [
+                      "metric.label.\"error_type\""
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "width": 6,
+        "height": 4,
+        "xPos": 6,
+        "yPos": 31
+      },
+      {
+        "title": "Authentication Errors",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/websocket/authentication_errors\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_RATE",
+                    "crossSeriesReducer": "REDUCE_SUM",
+                    "groupByFields": []
+                  }
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "Auth Errors/min"
+            }
+          ],
+          "timeshiftDuration": "0s",
+          "yAxis": {
+            "label": "Errors per Minute",
+            "scale": "LINEAR"
+          }
+        },
+        "width": 6,
+        "height": 4,
+        "xPos": 0,
+        "yPos": 35
+      },
+      {
+        "title": "Rate Limiting Events",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/websocket/rate_limit_events\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_RATE",
+                    "crossSeriesReducer": "REDUCE_SUM",
+                    "groupByFields": [
+                      "metric.label.\"limit_type\""
+                    ]
+                  }
+                }
+              },
+              "plotType": "STACKED_BAR",
+              "legendTemplate": "${metric.label.limit_type}"
+            }
+          ],
+          "timeshiftDuration": "0s",
+          "yAxis": {
+            "label": "Rate Limit Events per Minute",
+            "scale": "LINEAR"
+          }
+        },
+        "width": 6,
+        "height": 4,
+        "xPos": 6,
+        "yPos": 35
+      },
+      {
+        "title": "Resource Utilization",
+        "collapsibleGroup": {
+          "collapsed": false
+        },
+        "width": 12,
+        "height": 1,
+        "xPos": 0,
+        "yPos": 39
+      },
+      {
+        "title": "CPU Utilization",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"run.googleapis.com/container/cpu/utilization\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_MEAN",
+                    "crossSeriesReducer": "REDUCE_MEAN",
+                    "groupByFields": []
+                  }
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "CPU Utilization"
+            }
+          ],
+          "timeshiftDuration": "0s",
+          "yAxis": {
+            "label": "Utilization (%)",
+            "scale": "LINEAR"
+          }
+        },
+        "width": 6,
+        "height": 4,
+        "xPos": 0,
+        "yPos": 40
+      },
+      {
+        "title": "Memory Utilization",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"run.googleapis.com/container/memory/utilization\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_MEAN",
+                    "crossSeriesReducer": "REDUCE_MEAN",
+                    "groupByFields": []
+                  }
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "Memory Utilization"
+            }
+          ],
+          "timeshiftDuration": "0s",
+          "yAxis": {
+            "label": "Utilization (%)",
+            "scale": "LINEAR"
+          }
+        },
+        "width": 6,
+        "height": 4,
+        "xPos": 6,
+        "yPos": 40
+      },
+      {
+        "title": "Instance Count",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"run.googleapis.com/container/instance_count\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_MEAN",
+                    "crossSeriesReducer": "REDUCE_SUM",
+                    "groupByFields": []
+                  }
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "Instance Count"
+            }
+          ],
+          "timeshiftDuration": "0s",
+          "yAxis": {
+            "label": "Instances",
+            "scale": "LINEAR"
+          }
+        },
+        "width": 6,
+        "height": 4,
+        "xPos": 0,
+        "yPos": 44
+      },
+      {
+        "title": "Network Traffic",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"run.googleapis.com/container/network/received_bytes_count\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_RATE",
+                    "crossSeriesReducer": "REDUCE_SUM",
+                    "groupByFields": []
+                  }
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "Received Bytes/s"
+            },
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"run.googleapis.com/container/network/sent_bytes_count\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"websocket-server\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_RATE",
+                    "crossSeriesReducer": "REDUCE_SUM",
+                    "groupByFields": []
+                  }
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "Sent Bytes/s"
+            }
+          ],
+          "timeshiftDuration": "0s",
+          "yAxis": {
+            "label": "Bytes per Second",
+            "scale": "LINEAR"
+          }
+        },
+        "width": 6,
+        "height": 4,
+        "xPos": 6,
+        "yPos": 44
+      },
+      {
+        "title": "Redis Metrics",
+        "collapsibleGroup": {
+          "collapsed": false
+        },
+        "width": 12,
+        "height": 1,
+        "xPos": 0,
+        "yPos": 48
+      },
+      {
+        "title": "Redis Memory Usage",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"redis.googleapis.com/stats/memory/usage_ratio\" resource.type=\"redis_instance\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_MEAN",
+                    "crossSeriesReducer": "REDUCE_MEAN",
+                    "groupByFields": []
+                  }
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "Memory Usage Ratio"
+            }
+          ],
+          "timeshiftDuration": "0s",
+          "yAxis": {
+            "label": "Usage Ratio",
+            "scale": "LINEAR"
+          }
+        },
+        "width": 6,
+        "height": 4,
+        "xPos": 0,
+        "yPos": 49
+      },
+      {
+        "title": "Redis Pub/Sub Operations",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/redis/pubsub_operations\" resource.type=\"redis_instance\"",
+                  "aggregation": {
+                    "alignmentPeriod": "60s",
+                    "perSeriesAligner": "ALIGN_RATE",
+                    "crossSeriesReducer": "REDUCE_SUM",
+                    "groupByFields": [
+                      "metric.label.\"operation_type\""
+                    ]
+                  }
+                }
+              },
+              "plotType": "STACKED_BAR",
+              "legendTemplate": "${metric.label.operation_type}"
+            }
+          ],
+          "timeshiftDuration": "0s",
+          "yAxis": {
+            "label": "Operations per Second",
+            "scale": "LINEAR"
+          }
+        },
+        "width": 6,
+        "height": 4,
+        "xPos": 6,
+        "yPos": 49
+      },
+      {
+        "title": "SLA Compliance",
+        "collapsibleGroup": {
+          "collapsed": false
+        },
+        "width": 12,
+        "height": 1,
+        "xPos": 0,
+        "yPos": 53
+      },
+      {
+        "title": "WebSocket Availability SLA",
+        "scorecard": {
+          "timeSeriesQuery": {
+            "timeSeriesFilter": {
+              "filter": "metric.type=\"custom.googleapis.com/slo/websocket_availability\" resource.type=\"global\"",
+              "aggregation": {
+                "alignmentPeriod": "86400s",
+                "perSeriesAligner": "ALIGN_MEAN",
+                "crossSeriesReducer": "REDUCE_MEAN",
+                "groupByFields": []
+              }
+            }
+          },
+          "thresholds": [
+            {
+              "value": 0.99,
+              "color": "RED"
+            },
+            {
+              "value": 0.999,
+              "color": "YELLOW"
+            },
+            {
+              "value": 1.0,
+              "color": "GREEN"
+            }
+          ],
+          "sparkChartView": {
+            "sparkChartType": "SPARK_LINE"
+          }
+        },
+        "width": 4,
+        "height": 3,
+        "xPos": 0,
+        "yPos": 54
+      },
+      {
+        "title": "Message Latency SLA",
+        "scorecard": {
+          "timeSeriesQuery": {
+            "timeSeriesFilter": {
+              "filter": "metric.type=\"custom.googleapis.com/slo/websocket_latency\" resource.type=\"global\"",
+              "aggregation": {
+                "alignmentPeriod": "86400s",
+                "perSeriesAligner": "ALIGN_MEAN",
+                "crossSeriesReducer": "REDUCE_MEAN",
+                "groupByFields": []
+              }
+            }
+          },
+          "thresholds": [
+            {
+              "value": 0.95,
+              "color": "RED"
+            },
+            {
+              "value": 0.98,
+              "color": "YELLOW"
+            },
+            {
+              "value": 1.0,
+              "color": "GREEN"
+            }
+          ],
+          "sparkChartView": {
+            "sparkChartType": "SPARK_LINE"
+          }
+        },
+        "width": 4,
+        "height": 3,
+        "xPos": 4,
+        "yPos": 54
+      },
+      {
+        "title": "Error Rate SLA",
+        "scorecard": {
+          "timeSeriesQuery": {
+            "timeSeriesFilter": {
+              "filter": "metric.type=\"custom.googleapis.com/slo/websocket_error_rate\" resource.type=\"global\"",
+              "aggregation": {
+                "alignmentPeriod": "86400s",
+                "perSeriesAligner": "ALIGN_MEAN",
+                "crossSeriesReducer": "REDUCE_MEAN",
+                "groupByFields": []
+              }
+            }
+          },
+          "thresholds": [
+            {
+              "value": 0.97,
+              "color": "RED"
+            },
+            {
+              "value": 0.99,
+              "color": "YELLOW"
+            },
+            {
+              "value": 1.0,
+              "color": "GREEN"
+            }
+          ],
+          "sparkChartView": {
+            "sparkChartType": "SPARK_LINE"
+          }
+        },
+        "width": 4,
+        "height": 3,
+        "xPos": 8,
+        "yPos": 54
+      },
+      {
+        "title": "SLA Compliance Over Time",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/slo/websocket_availability\" resource.type=\"global\"",
+                  "aggregation": {
+                    "alignmentPeriod": "86400s",
+                    "perSeriesAligner": "ALIGN_MEAN",
+                    "crossSeriesReducer": "REDUCE_MEAN",
+                    "groupByFields": []
+                  }
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "Availability SLA"
+            },
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/slo/websocket_latency\" resource.type=\"global\"",
+                  "aggregation": {
+                    "alignmentPeriod": "86400s",
+                    "perSeriesAligner": "ALIGN_MEAN",
+                    "crossSeriesReducer": "REDUCE_MEAN",
+                    "groupByFields": []
+                  }
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "Latency SLA"
+            },
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"custom.googleapis.com/slo/websocket_error_rate\" resource.type=\"global\"",
+                  "aggregation": {
+                    "alignmentPeriod": "86400s",
+                    "perSeriesAligner": "ALIGN_MEAN",
+                    "crossSeriesReducer": "REDUCE_MEAN",
+                    "groupByFields": []
+                  }
+                }
+              },
+              "plotType": "LINE",
+              "legendTemplate": "Error Rate SLA"
+            }
+          ],
+          "timeshiftDuration": "0s",
+          "yAxis": {
+            "label": "Compliance (%)",
+            "scale": "LINEAR"
+          }
+        },
+        "width": 12,
+        "height": 4,
+        "xPos": 0,
+        "yPos": 57
+      }
+    ]
+  },
+  "mosaicLayout": {
+    "columns": 12,
+    "tiles": []
+  }
+}
